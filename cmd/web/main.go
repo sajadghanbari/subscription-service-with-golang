@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"subscription-service/data"
 	"sync"
 	"syscall"
 	"time"
@@ -37,11 +38,12 @@ func main() {
 	wg := sync.WaitGroup{}
 	//set up application config
 	app := Config{
-		Session: session,
-		DB:      db,
-		InfoLog: infoLog,
+		Session:  session,
+		DB:       db,
+		InfoLog:  infoLog,
 		ErrorLog: errorLog,
-		Wait:    &wg,
+		Wait:     &wg,
+		Models:   data.New(db),
 	}
 	// set up email
 
@@ -51,9 +53,9 @@ func main() {
 	app.serve()
 }
 
-func (app *Config) serve(){
+func (app *Config) serve() {
 	stv := &http.Server{
-		Addr: fmt.Sprintf(":%s", webPort),
+		Addr:    fmt.Sprintf(":%s", webPort),
 		Handler: app.routes(),
 	}
 
@@ -64,26 +66,25 @@ func (app *Config) serve(){
 	}
 }
 
-
 func initDB() *sql.DB {
 	conn := connectToDB()
-	if conn == nil{
+	if conn == nil {
 		log.Panic("can't connect to database")
 	}
 
 	return conn
 }
 
-func connectToDB() *sql.DB{
+func connectToDB() *sql.DB {
 	counts := 0
 
 	dsn := os.Getenv("DSN")
 
 	for {
-		connection , err := openDB(dsn)
-		if err != nil{
+		connection, err := openDB(dsn)
+		if err != nil {
 			log.Println("postgres not yet ready...")
-		}else{
+		} else {
 			log.Println("connected to database....")
 			return connection
 		}
@@ -93,26 +94,26 @@ func connectToDB() *sql.DB{
 		}
 
 		log.Print("Backing off fot 1 second")
-		time.Sleep(1*time.Second)
+		time.Sleep(1 * time.Second)
 		counts++
 		continue
 	}
 }
 
-func openDB(dsn string) (*sql.DB,error){
-	db , err := sql.Open("pgx" , dsn)
-	if err  != nil {
-		return nil , err
+func openDB(dsn string) (*sql.DB, error) {
+	db, err := sql.Open("pgx", dsn)
+	if err != nil {
+		return nil, err
 	}
 
 	err = db.Ping()
-		if err  != nil {
-		return nil , err
+	if err != nil {
+		return nil, err
 	}
 	return db, nil
 }
 
-func initSession() *scs.SessionManager{
+func initSession() *scs.SessionManager {
 	session := scs.New()
 	// Initialize Redis for session storage
 	session.Store = redisstore.New(initRedis())
@@ -123,7 +124,7 @@ func initSession() *scs.SessionManager{
 	return session
 }
 
-func initRedis() *redis.Pool{
+func initRedis() *redis.Pool {
 	redisPool := &redis.Pool{
 		MaxIdle:     10,
 		IdleTimeout: 240 * time.Second,
@@ -134,17 +135,17 @@ func initRedis() *redis.Pool{
 	return redisPool
 }
 
-func (app *Config) listenFotShutdown(){
-	quit := make(chan os.Signal,1)
-	signal.Notify(quit, syscall.SIGINT,syscall.SIGTERM)
+func (app *Config) listenFotShutdown() {
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	app.shutdown()
 	os.Exit(0)
 }
 
-func (app *Config) shutdown(){
+func (app *Config) shutdown() {
 	app.InfoLog.Println("would run cleanup tasks...")
-	// block until wait group 
+	// block until wait group
 	app.Wait.Wait()
 	app.InfoLog.Println("closing channels and shuting down.....")
 }
