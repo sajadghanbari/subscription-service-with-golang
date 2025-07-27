@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -26,7 +27,8 @@ func main() {
 	session := initSession()
 
 	//create loggers
-
+	infoLog := log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime|log.Lshortfile)
+	errorLog := log.New(os.Stderr, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
 	//create channels
 
 	//create wait groups
@@ -35,14 +37,29 @@ func main() {
 	app := Config{
 		Session: session,
 		DB:      db,
-		InfoLog: log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime|log.Lshortfile),
-		ErrorLog: log.New(os.Stderr, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile),
+		InfoLog: infoLog,
+		ErrorLog: errorLog,
 		Wait:    &wg,
 	}
 	// set up email
 
 	//listen for web connection
+	app.serve()
 }
+
+func (app *Config) serve(){
+	stv := &http.Server{
+		Addr: fmt.Sprintf(":%s", webPort),
+		Handler: app.routes(),
+	}
+
+	app.InfoLog.Println("Starting server on port", webPort)
+	err := stv.ListenAndServe()
+	if err != nil {
+		log.Panic(err)
+	}
+}
+
 
 func initDB() *sql.DB {
 	conn := connectToDB()
