@@ -38,7 +38,7 @@
 {{end}}
 
 {{define "js"}}
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.22.2/dist/sweetalert2.all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.4.14/dist/sweetalert2.all.min.js"></script>
     <script>
         function selectPlan(x, plan) {
             Swal.fire({
@@ -48,7 +48,7 @@
                 confirmButtonText: 'Subscribe',
             }).then((result) => {
                 if (result.isConfirmed) {
-                    {{/* window.location.href = '/subscribe?id=' + x; */}}
+                    window.location.href = '/members/subscribe?id=' + x;
                 }
             })
         }

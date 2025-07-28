@@ -45,14 +45,29 @@ func main() {
 		ErrorLog: errorLog,
 		Wait:     &wg,
 		Models:   data.New(db),
+		ErrorChan: make(chan error),
+		ErrorChanDone: make(chan bool),
 	}
 	// set up email
 	app.Mailer = app.createMail()
 	go app.listenForMail()
 	//listen for signals
 	go app.listenFotShutdown()
+	//listen for errors
+	go app.listenForErrors()
 	//listen for web connection
 	app.serve()
+}
+
+func (app *Config) listenForErrors(){
+	for {
+		select{
+		case err := <-app.ErrorChan:
+			app.ErrorLog.Panicln(err)
+		case <-app.ErrorChanDone:
+			return	
+		}
+	}
 }
 
 func (app *Config) serve() {
@@ -153,10 +168,14 @@ func (app *Config) shutdown() {
 	// block until wait group
 	app.Wait.Wait()
 	app.Mailer.DoneChan <- true
+	app.ErrorChanDone <- true
+	
 	app.InfoLog.Println("closing channels and shuting down.....")
 	close(app.Mailer.MailerChan)
 	close(app.Mailer.DoneChan)
 	close(app.Mailer.ErrorChan)
+	close(app.ErrorChan)
+	close(app.ErrorChanDone)
 }
 
 func (app *Config) createMail() Mail{
