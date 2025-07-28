@@ -152,7 +152,11 @@ func (app *Config) shutdown() {
 	app.InfoLog.Println("would run cleanup tasks...")
 	// block until wait group
 	app.Wait.Wait()
+	app.Mailer.DoneChan <- true
 	app.InfoLog.Println("closing channels and shuting down.....")
+	close(app.Mailer.MailerChan)
+	close(app.Mailer.DoneChan)
+	close(app.Mailer.ErrorChan)
 }
 
 func (app *Config) createMail() Mail{
