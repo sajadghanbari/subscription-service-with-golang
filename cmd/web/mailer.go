@@ -27,14 +27,15 @@ type Mail struct {
 }
 
 type Message struct {
-	From        string
-	FromName    string
-	To          string
-	Subject     string
-	Attachments []string
-	Data        any
-	DataMap     map[string]any
-	Template    string
+	From          string
+	FromName      string
+	To            string
+	Subject       string
+	Attachments   []string
+	AttachmentMap map[string]string
+	Data          any
+	DataMap       map[string]any
+	Template      string
 }
 
 //a function to listen for message on the Mailer chan
@@ -42,9 +43,9 @@ type Message struct {
 func (app *Config) listenForMail() {
 	for {
 		select {
-		case msg := <- app.Mailer.MailerChan:
+		case msg := <-app.Mailer.MailerChan:
 			go app.Mailer.sendMail(msg, app.Mailer.ErrorChan)
-		case err := <- app.Mailer.ErrorChan:
+		case err := <-app.Mailer.ErrorChan:
 			app.ErrorLog.Println(err)
 		case <-app.Mailer.DoneChan:
 			return
@@ -66,11 +67,20 @@ func (m *Mail) sendMail(msg Message, errorChan chan error) {
 		msg.FromName = m.FromName
 	}
 
-	data := map[string]any{
-		"message": msg.Data,
+
+
+	if msg.AttachmentMap == nil {
+		msg.AttachmentMap = make(map[string]string)
 	}
 
-	msg.DataMap = data
+	// data := map[string]any{
+	// 	"message": msg.Data,
+	// }
+	if len(msg.DataMap) == 0 {
+		msg.DataMap = make(map[string]any)
+	}
+
+	msg.DataMap["message"] = msg.Data
 
 	// build html mail
 	formattedMessage, err := m.buildHTMLMessage(msg)
@@ -108,6 +118,13 @@ func (m *Mail) sendMail(msg Message, errorChan chan error) {
 			email.AddAttachment(x)
 		}
 	}
+
+	if len(msg.AttachmentMap) > 0 {
+		for key , value := range msg.AttachmentMap {
+			email.AddAttachment(value,key)
+		}
+	}
+
 	err = email.Send(smtpClient)
 	if err != nil {
 		errorChan <- err
@@ -116,44 +133,42 @@ func (m *Mail) sendMail(msg Message, errorChan chan error) {
 }
 
 func (m *Mail) buildHTMLMessage(msg Message) (string, error) {
-	templateToRender := fmt.Sprintf("./cmd/web/template/%s.html.gohtml",msg.Template)
+	templateToRender := fmt.Sprintf("./cmd/web/template/%s.html.gohtml", msg.Template)
 	t, err := template.New("email-html").ParseFiles(templateToRender)
-	if err != nil{
-		return  "",err
+	if err != nil {
+		return "", err
 	}
 	var tpl bytes.Buffer
-	if err = t.ExecuteTemplate(&tpl, "body",msg.Data); err != nil {
-		return  "",nil
+	if err = t.ExecuteTemplate(&tpl, "body", msg.Data); err != nil {
+		return "", nil
 	}
 	formattedMessage := tpl.String()
 	formattedMessage, err = m.inlineCSS(formattedMessage)
-	if err != nil{
-		return  "",err
+	if err != nil {
+		return "", err
 	}
 	return formattedMessage, nil
 }
 
-
-func (m *Mail) inlineCSS(s string) (string , error){
+func (m *Mail) inlineCSS(s string) (string, error) {
 	options := premailer.Options{
-		RemoveClasses: false,
-		CssToAttributes: false,
+		RemoveClasses:     false,
+		CssToAttributes:   false,
 		KeepBangImportant: true,
 	}
-	prem , err := premailer.NewPremailerFromString(s , &options)
+	prem, err := premailer.NewPremailerFromString(s, &options)
 	if err != nil {
-		return "",err
+		return "", err
 	}
 
-	html , err := prem.Transform()
+	html, err := prem.Transform()
 	if err != nil {
-		return "",err
+		return "", err
 	}
 
-	return html , err
+	return html, err
 
 }
-
 
 func (m *Mail) buildPlainTextMessage(msg Message) (string, error) {
 	templateToRender := fmt.Sprintf("./cmd/web/templates/%s.plain.gohtml", msg.Template)
